@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+
+	"bitbucket.org/halvor_haukvik/ttm4100-go/msg"
 )
 
 func incommingConnListenAndAccept(handleConn func(c net.Conn), port string) {
@@ -27,11 +30,13 @@ func incommingConnListenAndAccept(handleConn func(c net.Conn), port string) {
 }
 
 func printContent(c net.Conn) {
-
+	var msg msg.ClientReq
+	json.NewDecoder(c).Decode(&msg)
+	fmt.Printf("%+v", msg)
 }
 
 func main() {
-	go incommingConnListenAndAccept(func(c net.Conn) { fmt.Println(c) }, "7000")
+	go incommingConnListenAndAccept(func(c net.Conn) { printContent(c) }, "7000")
 
 	// Block forever
 	select {}
