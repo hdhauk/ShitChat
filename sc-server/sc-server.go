@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -41,7 +42,11 @@ var newUserCh = make(chan user)
 var broadcastChatMsg = make(chan chatMsg)
 
 func main() {
-	go incommingConnListenAndAccept(mux, "7000")
+	listenPort := "7000"
+	flag.StringVar(&listenPort, "port", listenPort, "Port for the server to listen on")
+	flag.Parse()
+
+	go incommingConnListenAndAccept(mux, listenPort)
 
 	// Keep track of all registered users
 	for {
