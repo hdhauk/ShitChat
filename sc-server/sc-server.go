@@ -32,16 +32,6 @@ func incommingConnListenAndAccept(handleConn func(c net.Conn), port string) {
 	}
 }
 
-type user struct {
-	username string
-	respCh   chan msg.ServerResp
-}
-
-type threadSafeUsers struct {
-	list map[string]user
-	mu   sync.Mutex
-}
-
 var users = threadSafeUsers{
 	list: make(map[string]user),
 	mu:   sync.Mutex{},
@@ -56,12 +46,6 @@ func main() {
 	// Keep track of all registered users
 	for {
 		select {
-		// Add new users to the usermap
-		case new := <-newUserCh:
-			users.mu.Lock()
-			users.list[new.username] = new
-			users.mu.Unlock()
-
 		// Broadcast chatmessages to all registered users
 		case m := <-broadcastChatMsg:
 			toSend := msg.ServerResp{
@@ -71,11 +55,10 @@ func main() {
 				Content:   m.message,
 			}
 			// Broadcast to all users
-			users.mu.Lock()
-			for _, u := range users.list {
+			allUsers := users.DumpAllUsers()
+			for _, u := range allUsers {
 				u.respCh <- toSend
 			}
-			users.mu.Unlock()
 
 			// Save to history
 			chatHistory.Add(m)
@@ -87,8 +70,9 @@ func main() {
 func mux(c net.Conn) {
 	incommingReq := make(chan msg.ClientReq)
 	outgoingResp := make(chan msg.ServerResp)
+	closeConnCh := make(chan struct{})
 	go rx(c, incommingReq)
-	go tx(c, outgoingResp)
+	go tx(c, outgoingResp, closeConnCh)
 
 	var username string
 
@@ -99,22 +83,21 @@ func mux(c net.Conn) {
 			switch incomming.Request {
 			case "login":
 				username = incomming.Content.(string)
-				go handleLogin(username, outgoingResp)
+				go handleLogin(username, outgoingResp, closeConnCh)
 			case "msg":
 				go handleMsg(incomming.Content.(string), username, outgoingResp)
 			case "names":
 				handleNames(outgoingResp)
 			case "logout":
-				handleLogout(username)
+				handleLogout(username, closeConnCh)
 			}
 		}
 	}
 }
 
-func handleLogout(username string) {
-	users.mu.Lock()
-	delete(users.list, username)
-	users.mu.Unlock()
+func handleLogout(username string, closeConnCh chan struct{}) {
+	users.Remove(username)
+	closeConnCh <- struct{}{}
 }
 
 func handleNames(out chan msg.ServerResp) {
@@ -133,7 +116,8 @@ func handleMsg(message, username string, respCh chan msg.ServerResp) {
 	broadcastChatMsg <- chatMsg{username: username, message: message}
 }
 
-func handleLogin(username string, respCh chan msg.ServerResp) {
+func handleLogin(username string, respCh chan msg.ServerResp, closeConnCh chan struct{}) {
+	// Check username validity
 	if err := validate(username); err != nil {
 		respCh <- msg.ServerResp{
 			TimeStamp: time.Now().String(),
@@ -141,11 +125,22 @@ func handleLogin(username string, respCh chan msg.ServerResp) {
 			Resp:      "Info",
 			Content:   "Invalid username",
 		}
+		closeConnCh <- struct{}{}
 		return
 	}
-	// Add user to users db
+
+	// Add user
 	newUser := user{username, respCh}
-	newUserCh <- newUser
+	if err := users.Add(newUser); err != nil {
+		respCh <- msg.ServerResp{
+			TimeStamp: time.Now().String(),
+			Sender:    "server",
+			Resp:      "Error",
+			Content:   err.Error(),
+		}
+		closeConnCh <- struct{}{}
+		return
+	}
 
 	// Respond to user
 	respCh <- msg.ServerResp{
@@ -167,6 +162,7 @@ func handleLogin(username string, respCh chan msg.ServerResp) {
 		Resp:      "History",
 		Content:   strHist,
 	}
+	log.Printf("[INFO] Chat history sent to %s\n", username)
 }
 
 func rx(c net.Conn, out chan msg.ClientReq) {
@@ -182,12 +178,16 @@ func rx(c net.Conn, out chan msg.ClientReq) {
 	}
 }
 
-func tx(c net.Conn, out chan msg.ServerResp) {
+func tx(c net.Conn, out chan msg.ServerResp, closeConnCh chan struct{}) {
 	for {
 		select {
 		case resp := <-out:
 			// fmt.Printf("Sending %+v\n", resp)
 			json.NewEncoder(c).Encode(&resp)
+		case <-closeConnCh:
+			log.Printf("[INFO] Closing connection to %+v\n", c.RemoteAddr())
+			c.Close()
+			return
 		}
 	}
 }

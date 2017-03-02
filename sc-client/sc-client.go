@@ -3,9 +3,12 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os"
+	"os/signal"
 	"strings"
 	"time"
 
@@ -20,10 +23,10 @@ func rx(conn net.Conn) {
 		if resp == emptyResp {
 			continue
 		}
-		switch resp.Resp {
+		switch strings.ToLower(resp.Resp) {
 		case "names":
 			fmt.Print(resp.Content)
-		case "History":
+		case "history":
 			fmt.Println("=== Previous messages ===")
 			msgs := resp.Content.([]interface{})
 			for _, v := range msgs {
@@ -31,7 +34,7 @@ func rx(conn net.Conn) {
 			}
 			fmt.Println("=== Current messages ===")
 		default:
-			fmt.Printf("%s [%s] %s: %s\n", resp.TimeStamp, resp.Resp, resp.Sender, resp.Content)
+			fmt.Printf("%s [%s] %s: %s\n", resp.TimeStamp[:19], resp.Resp, resp.Sender, resp.Content)
 		}
 	}
 }
@@ -47,7 +50,16 @@ func tx(conn net.Conn, outbox chan msg.ClientReq) {
 }
 
 func main() {
-	conn, _ := net.Dial("tcp", "localhost:7000")
+	serverAddr := "localhost:7000"
+	flag.StringVar(&serverAddr, "server", serverAddr, "ip:port to the server")
+	flag.Parse()
+	conn, err := net.Dial("tcp", "localhost:7000")
+	if err != nil {
+		log.Fatalf("[ERROR] Unable to connect to server %s: %s\n", serverAddr, err.Error())
+	}
+
+	fmt.Println("=== ShitChat Client ===")
+	fmt.Printf("Connected to server at %v\n", conn.RemoteAddr())
 
 	outbox := make(chan msg.ClientReq)
 	go rx(conn)
@@ -59,6 +71,16 @@ func main() {
 	username, _ := reader.ReadString('\n')
 	username = strings.TrimRight(username, "\n")
 	json.NewEncoder(conn).Encode(msg.ClientReq{Request: "login", Content: username})
+
+	// Caputure Ctrl+C
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		outbox <- msg.ClientReq{Request: "logout"}
+		time.Sleep(200 * time.Millisecond)
+		os.Exit(1)
+	}()
 
 loop:
 	for {
