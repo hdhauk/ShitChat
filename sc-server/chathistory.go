@@ -7,21 +7,19 @@ type chatMsg struct {
 	message  string
 }
 
-type history struct {
+type threadSafeHistory struct {
 	messages []chatMsg
 	mu       sync.Mutex
 }
 
-func (h *history) Add(cm chatMsg) {
-	chatHistory.mu.Lock()
-	chatHistory.messages = append(chatHistory.messages, cm)
-	chatHistory.mu.Unlock()
+func (tsh *threadSafeHistory) Add(cm chatMsg) {
+	tsh.mu.Lock()
+	tsh.messages = append(tsh.messages, cm)
+	tsh.mu.Unlock()
 }
 
-func (h *history) Dump() []chatMsg {
-	chatHistory.mu.Lock()
-	defer chatHistory.mu.Unlock()
-	return chatHistory.messages
+func (tsh *threadSafeHistory) Dump() []chatMsg {
+	tsh.mu.Lock()
+	defer tsh.mu.Unlock()
+	return tsh.messages
 }
-
-var chatHistory = history{}

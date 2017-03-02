@@ -13,6 +13,43 @@ import (
 	"github.com/hdhauk/ShitChat/msg"
 )
 
+// Global storage
+var users = threadSafeUsers{list: make(map[string]user), mu: sync.Mutex{}}
+var chatHistory = threadSafeHistory{}
+
+// Internal server communication
+var broadcastChatMsg = make(chan chatMsg)
+
+func main() {
+	listenPort := "7000"
+	flag.StringVar(&listenPort, "port", listenPort, "Port for the server to listen on")
+	flag.Parse()
+
+	go incommingConnListenAndAccept(socketHandler, listenPort)
+
+	// Keep track of all registered users
+	for {
+		select {
+		// Broadcast chatmessages to all registered users
+		case m := <-broadcastChatMsg:
+			toSend := msg.ServerResp{
+				TimeStamp: time.Now().String(),
+				Sender:    m.username,
+				Resp:      "Message",
+				Content:   m.message,
+			}
+			// Broadcast to all users
+			allUsers := users.DumpAllUsers()
+			for _, u := range allUsers {
+				u.respCh <- toSend
+			}
+			// Save to history
+			chatHistory.Add(m)
+
+		}
+	}
+}
+
 func incommingConnListenAndAccept(handleConn func(c net.Conn), port string) {
 	localAddr, err := net.ResolveTCPAddr("tcp", "0.0.0.0:"+port)
 	if err != nil {
@@ -33,46 +70,7 @@ func incommingConnListenAndAccept(handleConn func(c net.Conn), port string) {
 	}
 }
 
-var users = threadSafeUsers{
-	list: make(map[string]user),
-	mu:   sync.Mutex{},
-}
-
-var newUserCh = make(chan user)
-var broadcastChatMsg = make(chan chatMsg)
-
-func main() {
-	listenPort := "7000"
-	flag.StringVar(&listenPort, "port", listenPort, "Port for the server to listen on")
-	flag.Parse()
-
-	go incommingConnListenAndAccept(mux, listenPort)
-
-	// Keep track of all registered users
-	for {
-		select {
-		// Broadcast chatmessages to all registered users
-		case m := <-broadcastChatMsg:
-			toSend := msg.ServerResp{
-				TimeStamp: time.Now().String(),
-				Sender:    m.username,
-				Resp:      "Message",
-				Content:   m.message,
-			}
-			// Broadcast to all users
-			allUsers := users.DumpAllUsers()
-			for _, u := range allUsers {
-				u.respCh <- toSend
-			}
-
-			// Save to history
-			chatHistory.Add(m)
-
-		}
-	}
-}
-
-func mux(c net.Conn) {
+func socketHandler(c net.Conn) {
 	incommingReq := make(chan msg.ClientReq)
 	outgoingResp := make(chan msg.ServerResp)
 	closeConnCh := make(chan struct{})
@@ -98,76 +96,6 @@ func mux(c net.Conn) {
 			}
 		}
 	}
-}
-
-func handleLogout(username string, closeConnCh chan struct{}) {
-	users.Remove(username)
-	closeConnCh <- struct{}{}
-}
-
-func handleNames(out chan msg.ServerResp) {
-	users.mu.Lock()
-	usernames := users.list
-	users.mu.Unlock()
-
-	namesString := ""
-	for k := range usernames {
-		namesString = namesString + k + "\n"
-	}
-	out <- msg.ServerResp{Resp: "names", Content: namesString}
-}
-
-func handleMsg(message, username string, respCh chan msg.ServerResp) {
-	broadcastChatMsg <- chatMsg{username: username, message: message}
-}
-
-func handleLogin(username string, respCh chan msg.ServerResp, closeConnCh chan struct{}) {
-	// Check username validity
-	if err := validate(username); err != nil {
-		respCh <- msg.ServerResp{
-			TimeStamp: time.Now().String(),
-			Sender:    "server",
-			Resp:      "Info",
-			Content:   "Invalid username",
-		}
-		closeConnCh <- struct{}{}
-		return
-	}
-
-	// Add user
-	newUser := user{username, respCh}
-	if err := users.Add(newUser); err != nil {
-		respCh <- msg.ServerResp{
-			TimeStamp: time.Now().String(),
-			Sender:    "server",
-			Resp:      "Error",
-			Content:   err.Error(),
-		}
-		closeConnCh <- struct{}{}
-		return
-	}
-
-	// Respond to user
-	respCh <- msg.ServerResp{
-		TimeStamp: time.Now().String(),
-		Sender:    "server",
-		Resp:      "Info",
-		Content:   "Login successful",
-	}
-
-	// Send chat history
-	hist := chatHistory.Dump()
-	strHist := []string{}
-	for _, v := range hist {
-		strHist = append(strHist, fmt.Sprintf("[%v] %s", v.username, v.message))
-	}
-	respCh <- msg.ServerResp{
-		TimeStamp: time.Now().String(),
-		Sender:    "server",
-		Resp:      "History",
-		Content:   strHist,
-	}
-	log.Printf("[INFO] Chat history sent to %s\n", username)
 }
 
 func rx(c net.Conn, out chan msg.ClientReq) {
