@@ -2,6 +2,8 @@
 
 **A crude and fairly crappy chat server and client, made for an assignment in TTM4100.**
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/hdhauk/shitchat)](https://goreportcard.com/report/github.com/hdhauk/shitchat)
+
 ### Installation
 ~~~
 go get github.com/hdhauk/ShitChat
