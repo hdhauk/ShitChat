@@ -8,9 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"bitbucket.org/halvor_haukvik/ttm4100-go/msg"
-
 	valid "github.com/asaskevich/govalidator"
+	"github.com/hdhauk/ShitChat/msg"
 )
 
 func incommingConnListenAndAccept(handleConn func(c net.Conn), port string) {

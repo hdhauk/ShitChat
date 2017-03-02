@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"bitbucket.org/halvor_haukvik/ttm4100-go/msg"
+	"github.com/hdhauk/ShitChat/msg"
 )
 
 func rx(conn net.Conn) {
