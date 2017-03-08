@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"reflect"
 	"strings"
 	"time"
 
@@ -28,9 +29,13 @@ func rx(conn net.Conn) {
 			fmt.Print(resp.Content)
 		case "history":
 			fmt.Println("=== Previous messages ===")
-			msgs := resp.Content.([]interface{})
-			for _, v := range msgs {
-				fmt.Println(v)
+			if reflect.TypeOf(resp.Content).Kind() != reflect.Slice {
+				fmt.Println("Recieved bad history")
+			} else {
+				msgs := resp.Content.([]interface{})
+				for _, v := range msgs {
+					fmt.Println(v)
+				}
 			}
 			fmt.Println("=== Current messages ===")
 		default:
@@ -50,10 +55,11 @@ func tx(conn net.Conn, outbox chan msg.ClientReq) {
 }
 
 func main() {
-	serverAddr := "localhost:7000"
+	var serverAddr = "localhost:7000"
 	flag.StringVar(&serverAddr, "server", serverAddr, "ip:port to the server")
 	flag.Parse()
-	conn, err := net.Dial("tcp", "localhost:7000")
+	fmt.Println(serverAddr)
+	conn, err := net.Dial("tcp", serverAddr)
 	if err != nil {
 		log.Fatalf("[ERROR] Unable to connect to server %s: %s\n", serverAddr, err.Error())
 	}
