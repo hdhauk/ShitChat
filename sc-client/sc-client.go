@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dimiro1/banner"
 	"github.com/hdhauk/ShitChat/msg"
 )
 
@@ -55,6 +57,7 @@ func tx(conn net.Conn, outbox chan msg.ClientReq) {
 }
 
 func main() {
+	banner.Init(os.Stdout, true, true, bytes.NewBufferString(bannerTxt))
 	var serverAddr = "localhost:7000"
 	flag.StringVar(&serverAddr, "server", serverAddr, "ip:port to the server")
 	flag.Parse()
@@ -107,3 +110,13 @@ loop:
 		}
 	}
 }
+
+var bannerTxt = `
+{{ .AnsiColor.Cyan }}███████╗██╗  ██╗██╗████████╗     ██████╗██╗  ██╗ █████╗ ████████╗
+██╔════╝██║  ██║██║╚══██╔══╝    ██╔════╝██║  ██║██╔══██╗╚══██╔══╝
+███████╗███████║██║   ██║       ██║     ███████║███████║   ██║
+╚════██║██╔══██║██║   ██║       ██║     ██╔══██║██╔══██║   ██║
+███████║██║  ██║██║   ██║       ╚██████╗██║  ██║██║  ██║   ██║
+╚══════╝╚═╝  ╚═╝╚═╝   ╚═╝        ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝
+================================================================={{ .AnsiColor.Default }}
+`
