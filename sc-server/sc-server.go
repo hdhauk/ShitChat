@@ -93,6 +93,8 @@ func socketHandler(c net.Conn) {
 				handleNames(outgoingResp)
 			case "logout":
 				handleLogout(username, closeConnCh)
+			case "help":
+				handleHelp(outgoingResp)
 			}
 		}
 	}

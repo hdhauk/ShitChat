@@ -77,3 +77,15 @@ func handleLogin(username string, respCh chan msg.ServerResp, closeConnCh chan s
 	}
 	log.Printf("[INFO] Chat history sent to %s\n", username)
 }
+
+func handleHelp(respCh chan msg.ServerResp) {
+	respCh <- msg.ServerResp{
+		Resp: "help",
+		Content: `The server support the following requests:
+	login <username>
+	logout
+	msg <message>
+	names
+	help`,
+	}
+}

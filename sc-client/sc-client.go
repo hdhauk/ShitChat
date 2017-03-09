@@ -40,8 +40,16 @@ func rx(conn net.Conn) {
 				}
 			}
 			fmt.Println("=== Current messages ===")
-		default:
+		case "help":
+			fmt.Println(resp.Content)
+		case "message":
 			fmt.Printf("%s [%s] %s: %s\n", resp.TimeStamp[:19], resp.Resp, resp.Sender, resp.Content)
+		case "info":
+			fmt.Printf("[INFO] %s\n", resp.Content)
+		case "error":
+			fmt.Printf("[ERROR] %s\n", resp.Content)
+		default:
+			fmt.Printf("[WARN] Unrecognized response: %+v\n", resp)
 		}
 	}
 }

@@ -1,6 +1,10 @@
 package main
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+	"time"
+)
 
 type chatMsg struct {
 	username string
@@ -14,6 +18,8 @@ type threadSafeHistory struct {
 
 func (tsh *threadSafeHistory) Add(cm chatMsg) {
 	tsh.mu.Lock()
+	// Add timestamps to messages
+	cm.message = fmt.Sprintf("%s > %s", time.Now().String()[:19], cm.message)
 	tsh.messages = append(tsh.messages, cm)
 	tsh.mu.Unlock()
 }
