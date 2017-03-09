@@ -58,7 +58,6 @@ func main() {
 	var serverAddr = "localhost:7000"
 	flag.StringVar(&serverAddr, "server", serverAddr, "ip:port to the server")
 	flag.Parse()
-	fmt.Println(serverAddr)
 	conn, err := net.Dial("tcp", serverAddr)
 	if err != nil {
 		log.Fatalf("[ERROR] Unable to connect to server %s: %s\n", serverAddr, err.Error())
