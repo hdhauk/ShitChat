@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 
@@ -27,7 +28,20 @@ func main() {
 
 	go incommingConnListenAndAccept(socketHandler, listenPort)
 
-	// Keep track of all registered users
+	// Serve an websocket enpoint as well...we live in 2017 after all!
+	hub := newHub()
+	go hub.run()
+	http.HandleFunc("/", serveHome)
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		serveWS(hub, w, r)
+	})
+	go func() {
+		err := http.ListenAndServe(":8000", nil)
+		if err != nil {
+			log.Printf("ListenAndServeHTTP: %+v\n", err)
+		}
+	}()
+
 	for {
 		select {
 		// Broadcast chatmessages to all registered users
@@ -43,6 +57,8 @@ func main() {
 			for _, u := range allUsers {
 				u.respCh <- toSend
 			}
+
+			hub.broadcast <- []byte(fmt.Sprintf("[%s] %s", m.username, m.message))
 			// Save to history
 			chatHistory.Add(m)
 
