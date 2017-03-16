@@ -74,7 +74,7 @@ func socketHandler(c net.Conn) {
 	incommingReq := make(chan msg.ClientReq)
 	outgoingResp := make(chan msg.ServerResp)
 	closeConnCh := make(chan struct{})
-	go rx(c, incommingReq)
+	go rx(c, incommingReq, closeConnCh)
 	go tx(c, outgoingResp, closeConnCh)
 
 	var username string
@@ -100,12 +100,19 @@ func socketHandler(c net.Conn) {
 	}
 }
 
-func rx(c net.Conn, out chan msg.ClientReq) {
+func rx(c net.Conn, out chan msg.ClientReq, closeConnCh chan struct{}) {
 	emptyReq := msg.ClientReq{}
+	remoteAddr := c.RemoteAddr().String()
 	for {
 		// Decode incomming msg
 		var req msg.ClientReq
-		json.NewDecoder(c).Decode(&req)
+		err := json.NewDecoder(c).Decode(&req)
+		if err != nil {
+			log.Printf("[ERROR] Decoding request: %s\n", err.Error())
+			close(closeConnCh)
+			log.Printf("[INFO] Stopping rx for client %v\n", remoteAddr)
+			return
+		}
 		if req == emptyReq {
 			continue
 		}
@@ -114,14 +121,16 @@ func rx(c net.Conn, out chan msg.ClientReq) {
 }
 
 func tx(c net.Conn, out chan msg.ServerResp, closeConnCh chan struct{}) {
+	remoteAddr := c.RemoteAddr().String()
 	for {
 		select {
 		case resp := <-out:
 			// fmt.Printf("Sending %+v\n", resp)
 			json.NewEncoder(c).Encode(&resp)
 		case <-closeConnCh:
-			log.Printf("[INFO] Closing connection to %+v\n", c.RemoteAddr())
+			log.Printf("[INFO] Closing connection to %+v\n", remoteAddr)
 			c.Close()
+			log.Printf("[INFO] Stopping tx for client %v\n", remoteAddr)
 			return
 		}
 	}

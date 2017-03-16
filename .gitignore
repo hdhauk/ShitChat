@@ -30,5 +30,5 @@ _testmain.go
 vendor/
 /.project
 
-server
-client
+sc-server
+sc-client
