@@ -32,7 +32,7 @@ func rx(conn net.Conn) {
 		case "history":
 			fmt.Println("=== Previous messages ===")
 			if reflect.TypeOf(resp.Content).Kind() != reflect.Slice {
-				fmt.Println("Recieved bad history")
+				fmt.Println("Received bad history")
 			} else {
 				msgs := resp.Content.([]interface{})
 				for _, v := range msgs {
